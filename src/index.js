@@ -60,6 +60,20 @@ const deriveEncryptionKeySalt = () => {
     return computeHKDF(uint8MasterSecret, uint8Salt);
 };
 
+const generateHashedKey = async () => {
+    const normalisedMasterPassword = normMasterPassword('masterPassword');
+    console.log('normalised master password : ', normalisedMasterPassword);
+    const uint8MasterPassword = encodeMasterPassword(normalisedMasterPassword);
+    try {
+        const salt = await deriveEncryptionKeySalt(); // send to server
+        console.log('32 byte salt : ', salt);
+        // perform PBKDF2-HMAC-SHA256 hashing
+        return sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
+    } catch (err) {
+        console.log(err);
+    }
+};
+
 const deriveIntermediateKey = (secretKey, accountId) => {
     const uint8Salt = stringToUint8Array(accountId);
     const uint8MasterSecret = stringToUint8Array(secretKey);
@@ -69,23 +83,10 @@ const deriveIntermediateKey = (secretKey, accountId) => {
 const generateSecretKey = () => {
     const versionSetting = 'A1';
     const accountId = 'ABC123';
-    const random26String = cryptoRandomString({ length: 26, characters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890' });
+    const random26String = cryptoRandomString({ length: 26, characters: 'ABCDEFGHJKLMNPQRSTVWXYZ23456789' });
     const secretKey = versionSetting.concat(accountId, random26String);
     console.log('Secret Key : ', secretKey);
     return { accountId, secretKey };
-};
-
-const generateHashedKey = async () => {
-    const normalisedMasterPassword = normMasterPassword('masterPassword');
-    console.log('normalised master password : ', normalisedMasterPassword);
-    const uint8MasterPassword = encodeMasterPassword(normalisedMasterPassword);
-    try {
-        const salt = await deriveEncryptionKeySalt(); // send to server
-        console.log('32 byte salt : ', salt);
-        return sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
-    } catch (err) {
-        console.log(err);
-    }
 };
 
 function generateKeypair() {
