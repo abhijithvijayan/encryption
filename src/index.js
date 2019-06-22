@@ -9,7 +9,6 @@ import hkdf from 'js-crypto-hkdf';
 import trimRight from 'trim-right';
 import jseu from 'js-encoding-utils';
 import * as sha256 from 'fast-sha256';
-import secureRandom from 'secure-random';
 import cryptoRandomString from 'crypto-random-string';
 
 const normMasterPassword = password => {
@@ -59,13 +58,19 @@ const deriveKey = () => {
     return computeHKDF(uint8MasterSecret, uint8Salt);
 };
 
+const deriveIntermediateKey = (secretKey, accountId) => {
+    const uint8Salt = stringToUint8Array(accountId);
+    const uint8MasterSecret = stringToUint8Array(secretKey);
+    return computeHKDF(uint8MasterSecret, uint8Salt);
+};
+
 const generateSecretKey = () => {
     const versionSetting = 'A1';
     const accountId = 'ABC123';
     const random26String = cryptoRandomString({ length: 26, characters: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890' });
     const secretKey = versionSetting.concat(accountId, random26String);
     console.log('Secret Key : ', secretKey);
-    return secretKey;
+    return { accountId, secretKey };
 };
 
 const generateHashedKey = async () => {
@@ -75,23 +80,24 @@ const generateHashedKey = async () => {
     try {
         const salt = await deriveKey();
         console.log('32 byte salt : ', salt);
-        const hashedKey = sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
-        console.log('hashed key: ', hashedKey);
-        return hashedKey;
+        return sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
     } catch (err) {
         console.log(err);
     }
 };
 
-// normalize master password first
-// prepare 16 byte salt
-// then to hash based key derivation function salted with lowercase version of email
-// PBKDF2-HMAC-SHA256
-
 class App extends Component {
     async componentDidMount() {
-        await generateHashedKey();
-        generateSecretKey();
+        const hashedKey = await generateHashedKey();
+        console.log('hashed key: ', hashedKey);
+        const { accountId, secretKey } = generateSecretKey();
+        const intermediateKey = await deriveIntermediateKey(secretKey, accountId);
+        console.log('Intermediate key : ', intermediateKey);
+        // ToDo:
+        // 1. XOR hashedKey and intermediateKey to get Master Unlock Key
+        // 2. Encrypt Private Key with MUK
+        // 3. Decrypting Vault Keys is done with Original Private Key
+        // 4. Vault Keys are used to decrypt data
     }
 
     render() {

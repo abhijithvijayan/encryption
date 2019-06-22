@@ -14,7 +14,6 @@
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
     "react-scripts": "3.0.1",
-    "secure-random": "^1.1.2",
     "trim-left": "^1.0.1",
     "trim-right": "^1.0.1",
     "unorm": "^1.5.0"
