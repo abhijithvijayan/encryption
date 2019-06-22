@@ -104,12 +104,9 @@ function generateKeypair() {
     return crypt.getPublicKey();
 }
 
-const keyToJWK = keyArray => {
-    // Convert Typed Array, ArrayBuffer, or Array of Numbers to a Buffer
-    const buffer = jose.util.asBuffer(keyArray);
+const keyTobase64uri = keyArray => {
     // convert from a Buffer to a base64uri-encoded String
-    return jose.util.base64url.encode(buffer);
-    // ToDo: Return as JWK object
+    return jose.util.base64url.encode(keyArray);
 };
 
 class App extends Component {
@@ -119,17 +116,20 @@ class App extends Component {
         */
         const hashedKey = await generateHashedKey();
         console.log('hashed key: ', hashedKey);
+
         const { accountId, secretKey } = generateSecretKey();
         const intermediateKey = await deriveIntermediateKey(secretKey, accountId);
         console.log('Intermediate key : ', intermediateKey);
+
         // XOR Operation
         const XORedKey = bitwise.bits.xor(hashedKey, intermediateKey);
         // To Uint8Array
         const masterUnlockKey = new Uint8Array(XORedKey);
         console.log('master unlock key : ', masterUnlockKey);
 
-        const base64uriString = keyToJWK(masterUnlockKey);
-        console.log('base64url : ', base64uriString);
+        // ToDo: Return as JWK object
+        const base64uriKey = keyTobase64uri(masterUnlockKey);
+        console.log('base64uri-encoded MUK : ', base64uriKey);
 
         // ToDo:
         // 1. Encrypt Private Key with MUK/KEK
@@ -145,7 +145,7 @@ class App extends Component {
     }
 
     render() {
-        return <div>Look in the console!</div>;
+        return <div>Look at the console!</div>;
     }
 }
 
