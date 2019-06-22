@@ -13,6 +13,8 @@ import jseu from 'js-encoding-utils';
 import * as sha256 from 'fast-sha256';
 import cryptoRandomString from 'crypto-random-string';
 
+import jose from 'node-jose';
+
 const normMasterPassword = password => {
     /* Trim white-spaces from master password */
     const leftTrimmed = trimLeft(password);
@@ -102,6 +104,14 @@ function generateKeypair() {
     return crypt.getPublicKey();
 }
 
+const keyToJWK = keyArray => {
+    // Convert Typed Array, ArrayBuffer, or Array of Numbers to a Buffer
+    const buffer = jose.util.asBuffer(keyArray);
+    // convert from a Buffer to a base64uri-encoded String
+    return jose.util.base64url.encode(buffer);
+    // ToDo: Return as JWK object
+};
+
 class App extends Component {
     async componentDidMount() {
         /**
@@ -117,6 +127,10 @@ class App extends Component {
         // To Uint8Array
         const masterUnlockKey = new Uint8Array(XORedKey);
         console.log('master unlock key : ', masterUnlockKey);
+
+        const base64uriString = keyToJWK(masterUnlockKey);
+        console.log('base64url : ', base64uriString);
+
         // ToDo:
         // 1. Encrypt Private Key with MUK/KEK
         // 1. MUK to JWK (symmetric key : AES-256-GCM) (to store)
