@@ -6,6 +6,7 @@ import unorm from 'unorm';
 import forge from 'node-forge';
 import trimLeft from 'trim-left';
 import hkdf from 'js-crypto-hkdf';
+import JSEncrypt from 'jsencrypt';
 import trimRight from 'trim-right';
 import jseu from 'js-encoding-utils';
 import * as sha256 from 'fast-sha256';
@@ -52,7 +53,7 @@ const computeHKDF = (uint8MasterSecret, uint8Salt) => {
     });
 };
 
-const deriveKey = () => {
+const deriveEncryptionKeySalt = () => {
     const uint8Salt = encodeEmail();
     const uint8MasterSecret = encodeSalt();
     return computeHKDF(uint8MasterSecret, uint8Salt);
@@ -78,7 +79,7 @@ const generateHashedKey = async () => {
     console.log('normalised master password : ', normalisedMasterPassword);
     const uint8MasterPassword = encodeMasterPassword(normalisedMasterPassword);
     try {
-        const salt = await deriveKey();
+        const salt = await deriveEncryptionKeySalt(); // send to server
         console.log('32 byte salt : ', salt);
         return sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
     } catch (err) {
@@ -86,8 +87,22 @@ const generateHashedKey = async () => {
     }
 };
 
+function generateKeypair() {
+    let crypt = null;
+    let privateKey = null;
+    crypt = new JSEncrypt({ default_key_size: 2056 });
+    privateKey = crypt.getPrivateKey();
+    console.log(privateKey);
+    // encrypt privatekey with MUK
+    // store to server
+    return crypt.getPublicKey();
+}
+
 class App extends Component {
     async componentDidMount() {
+        /**
+            Encryption Keys
+        */
         const hashedKey = await generateHashedKey();
         console.log('hashed key: ', hashedKey);
         const { accountId, secretKey } = generateSecretKey();
@@ -98,6 +113,12 @@ class App extends Component {
         // 2. Encrypt Private Key with MUK
         // 3. Decrypting Vault Keys is done with Original Private Key
         // 4. Vault Keys are used to decrypt data
+
+        /**
+            Public-Private Keys
+        */
+        const publicKey = generateKeypair(); // send to server
+        console.log(publicKey);
     }
 
     render() {
