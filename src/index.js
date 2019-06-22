@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
 
 import unorm from 'unorm';
+import bitwise from 'bitwise';
 import forge from 'node-forge';
 import trimLeft from 'trim-left';
 import hkdf from 'js-crypto-hkdf';
@@ -92,9 +93,11 @@ function generateKeypair() {
     let privateKey = null;
     crypt = new JSEncrypt({ default_key_size: 2056 });
     privateKey = crypt.getPrivateKey();
-    console.log(privateKey);
-    // encrypt privatekey with MUK
+    // console.log(privateKey);
+    // encrypt privatekey with MUK(Symmetric encryption is AES-256-GCM)
     // store to server
+
+    // public key encryption is RSA-OAEP with 2048-bit moduli and a public exponent of 65537.
     return crypt.getPublicKey();
 }
 
@@ -108,9 +111,14 @@ class App extends Component {
         const { accountId, secretKey } = generateSecretKey();
         const intermediateKey = await deriveIntermediateKey(secretKey, accountId);
         console.log('Intermediate key : ', intermediateKey);
+        // XOR Operation
+        const XORedKey = bitwise.bits.xor(hashedKey, intermediateKey);
+        // To Uint8Array
+        const masterUnlockKey = new Uint8Array(XORedKey);
+        console.log('master unlock key : ', masterUnlockKey);
         // ToDo:
-        // 1. XOR hashedKey and intermediateKey to get Master Unlock Key
-        // 2. Encrypt Private Key with MUK
+        // 1. Encrypt Private Key with MUK/KEK
+        // 1. MUK to JWK (symmetric key : AES-256-GCM) (to store)
         // 3. Decrypting Vault Keys is done with Original Private Key
         // 4. Vault Keys are used to decrypt data
 
@@ -118,7 +126,7 @@ class App extends Component {
             Public-Private Keys
         */
         const publicKey = generateKeypair(); // send to server
-        console.log(publicKey);
+        // console.log(publicKey);
     }
 
     render() {
