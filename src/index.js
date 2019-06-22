@@ -106,7 +106,9 @@ function generateKeypair() {
 
 const keyTobase64uri = keyArray => {
     // convert from a Buffer to a base64uri-encoded String
-    return jose.util.base64url.encode(keyArray);
+    return jseu.encoder.encodeBase64Url(keyArray);
+    // ToDo: use node-jose if JWK could be performed with it
+    // return jose.util.base64url.encode(keyArray);
 };
 
 class App extends Component {
