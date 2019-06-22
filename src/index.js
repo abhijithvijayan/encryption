@@ -94,14 +94,16 @@ const generateSecretKey = () => {
 function generateKeypair() {
     let crypt = null;
     let privateKey = null;
+    let publicKey = null;
     crypt = new JSEncrypt({ default_key_size: 2056 });
     privateKey = crypt.getPrivateKey();
+    publicKey = crypt.getPublicKey();
     // console.log(privateKey);
     // encrypt privatekey with MUK(Symmetric encryption is AES-256-GCM)
     // store to server
 
     // public key encryption is RSA-OAEP with 2048-bit moduli and a public exponent of 65537.
-    return crypt.getPublicKey();
+    return { privateKey, publicKey };
 }
 
 const keyTobase64uri = keyArray => {
@@ -109,6 +111,16 @@ const keyTobase64uri = keyArray => {
     return jseu.encoder.encodeBase64Url(keyArray);
     // ToDo: use node-jose if JWK could be performed with it
     // return jose.util.base64url.encode(keyArray);
+};
+
+const encryptPrivateKey = masterUnlockKey => {
+    const { privateKey } = generateKeypair();
+    const key = forge.random.getBytesSync(16);
+    console.log('Private Key: ', privateKey);
+    // 12 byte IV recommended
+    const iv = forge.random.getBytesSync(12);
+    // encrypt using AES-GCM-256
+    // https://kutt.it/FxInxm
 };
 
 class App extends Component {
@@ -128,6 +140,8 @@ class App extends Component {
         // To Uint8Array
         const masterUnlockKey = new Uint8Array(XORedKey);
         console.log('master unlock key : ', masterUnlockKey);
+
+        encryptPrivateKey(masterUnlockKey);
 
         // ToDo: Return as JWK object
         const base64uriKey = keyTobase64uri(masterUnlockKey);
