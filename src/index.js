@@ -15,6 +15,25 @@ import cryptoRandomString from 'crypto-random-string';
 
 import jose from 'node-jose';
 
+import srpClient from 'secure-remote-password/client';
+
+const { rsa } = forge.pki;
+
+const performSRP = () => {
+    const userId = 'user_123';
+    const masterPassword = '$uper$ecure';
+
+    const salt = srpClient.generateSalt();
+    // compute x
+    const privateKey = srpClient.derivePrivateKey(salt, userId, masterPassword);
+    const verifier = srpClient.deriveVerifier(privateKey);
+
+    console.log('salt', salt);
+    //= > FB95867E...
+
+    console.log('verifier', verifier);
+};
+
 const normMasterPassword = password => {
     /* Trim white-spaces from master password */
     const leftTrimmed = trimLeft(password);
@@ -62,18 +81,13 @@ const deriveEncryptionKeySalt = () => {
     return computeHKDF(uint8MasterSecret, uint8Salt);
 };
 
-const generateHashedKey = async () => {
+const generateHashedKey = salt => {
     const normalisedMasterPassword = normMasterPassword('masterPassword');
     console.log('normalised master password : ', normalisedMasterPassword);
     const uint8MasterPassword = encodeMasterPassword(normalisedMasterPassword);
-    try {
-        const salt = await deriveEncryptionKeySalt(); // send to server
-        console.log('32 byte salt : ', salt);
-        // perform PBKDF2-HMAC-SHA256 hashing
-        return sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
-    } catch (err) {
-        console.log(err);
-    }
+    console.log('32 byte salt : ', salt);
+    // perform PBKDF2-HMAC-SHA256 hashing
+    return sha256.pbkdf2(uint8MasterPassword, salt, 100000, 32);
 };
 
 const deriveIntermediateKey = (secretKey, accountId) => {
@@ -91,20 +105,16 @@ const generateSecretKey = () => {
     return { accountId, secretKey };
 };
 
-function generateKeypair() {
-    let crypt = null;
-    let privateKey = null;
-    let publicKey = null;
-    crypt = new JSEncrypt({ default_key_size: 2056 });
-    privateKey = crypt.getPrivateKey();
-    publicKey = crypt.getPublicKey();
+const generateKeypair = async () => {
+    const keypair = await rsa.generateKeyPair({ bits: 2048, workers: 2 });
+    const { privateKey, publicKey } = keypair;
     // console.log(privateKey);
     // encrypt privatekey with MUK(Symmetric encryption is AES-256-GCM)
     // store to server
 
     // public key encryption is RSA-OAEP with 2048-bit moduli and a public exponent of 65537.
     return { privateKey, publicKey };
-}
+};
 
 const keyTobase64uri = keyArray => {
     // convert from a Buffer to a base64uri-encoded String
@@ -123,12 +133,27 @@ const encryptPrivateKey = masterUnlockKey => {
     // https://kutt.it/FxInxm
 };
 
+const encryptVaultKeyWithPublicKey = (data, publicKey) => {
+    // encrypt data with a public key using RSAES-OAEP/SHA-256
+    return publicKey.encrypt(data, 'RSA-OAEP', {
+        md: forge.md.sha256.create(),
+    });
+};
+
+const decryptVaultKeyWithPrivateKey = (encrypted, privateKey) => {
+    // decrypt data with a private key using RSAES-OAEP/SHA-256
+    return privateKey.decrypt(encrypted, 'RSA-OAEP', {
+        md: forge.md.sha256.create(),
+    });
+};
+
 class App extends Component {
     async componentDidMount() {
         /**
             Encryption Keys
         */
-        const hashedKey = await generateHashedKey();
+        const encryptionKeySalt = deriveEncryptionKeySalt(); // send to server
+        const hashedKey = await generateHashedKey(encryptionKeySalt);
         console.log('hashed key: ', hashedKey);
 
         const { accountId, secretKey } = generateSecretKey();
@@ -141,7 +166,7 @@ class App extends Component {
         const masterUnlockKey = new Uint8Array(XORedKey);
         console.log('master unlock key : ', masterUnlockKey);
 
-        encryptPrivateKey(masterUnlockKey);
+        // encryptPrivateKey(masterUnlockKey);
 
         // ToDo: Return as JWK object
         const base64uriKey = keyTobase64uri(masterUnlockKey);
@@ -151,13 +176,20 @@ class App extends Component {
         // 1. Encrypt Private Key with MUK/KEK
         // 1. MUK to JWK (symmetric key : AES-256-GCM) (to store)
         // 3. Decrypting Vault Keys is done with Original Private Key
-        // 4. Vault Keys are used to decrypt data
+        // 4. Vault Keys are used to encrypt/decrypt data
 
         /**
             Public-Private Keys
         */
-        const publicKey = generateKeypair(); // send to server
-        // console.log(publicKey);
+        const { publicKey, privateKey } = await generateKeypair(); // send to server
+        console.log('private/public keypair', publicKey, privateKey);
+
+        // 32 bytes vault key
+        const vaultKey = forge.random.getBytesSync(32);
+        const encryptedVaultKey = encryptVaultKeyWithPublicKey(vaultKey, publicKey);
+        console.log('Encrypted data with public key: ', encryptedVaultKey);
+        const decryptedVaultKey = decryptVaultKeyWithPrivateKey(encryptedVaultKey, privateKey);
+        console.log('Decrypted with private key: ', decryptedVaultKey);
     }
 
     render() {
