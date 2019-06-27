@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable no-console */
 import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
@@ -161,7 +162,7 @@ class App extends Component {
         /**
             Encryption Keys
         */
-        const encryptionKeySalt = deriveEncryptionKeySalt(); // send to server
+        const encryptionKeySalt = await deriveEncryptionKeySalt(); // send to server
         const hashedKey = await generateHashedKey(encryptionKeySalt);
         console.log('password key: ', hashedKey);
 
