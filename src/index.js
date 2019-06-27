@@ -3,6 +3,7 @@ import React, { Component } from 'react';
 import ReactDOM from 'react-dom';
 
 import unorm from 'unorm';
+import jwt from 'jwt-simple';
 import bitwise from 'bitwise';
 import forge from 'node-forge';
 import trimLeft from 'trim-left';
@@ -10,6 +11,7 @@ import hkdf from 'js-crypto-hkdf';
 import JSEncrypt from 'jsencrypt';
 import trimRight from 'trim-right';
 import jseu from 'js-encoding-utils';
+import JSONWebKey from 'json-web-key';
 import * as sha256 from 'fast-sha256';
 import cryptoRandomString from 'crypto-random-string';
 
@@ -81,6 +83,7 @@ const deriveEncryptionKeySalt = () => {
     return computeHKDF(uint8MasterSecret, uint8Salt);
 };
 
+// password key
 const generateHashedKey = salt => {
     const normalisedMasterPassword = normMasterPassword('masterPassword');
     console.log('normalised master password : ', normalisedMasterPassword);
@@ -147,6 +150,12 @@ const decryptVaultKeyWithPrivateKey = (encrypted, privateKey) => {
     });
 };
 
+const generateSymmetricKey = () => {
+    const key = forge.random.getBytesSync(32);
+    const encodedSymmetricKey = stringToUint8Array(key);
+    return keyTobase64uri(encodedSymmetricKey);
+};
+
 class App extends Component {
     async componentDidMount() {
         /**
@@ -154,7 +163,7 @@ class App extends Component {
         */
         const encryptionKeySalt = deriveEncryptionKeySalt(); // send to server
         const hashedKey = await generateHashedKey(encryptionKeySalt);
-        console.log('hashed key: ', hashedKey);
+        console.log('password key: ', hashedKey);
 
         const { accountId, secretKey } = generateSecretKey();
         const intermediateKey = await deriveIntermediateKey(secretKey, accountId);
@@ -173,10 +182,9 @@ class App extends Component {
         console.log('base64uri-encoded MUK : ', base64uriKey);
 
         // ToDo:
-        // 1. Encrypt Private Key with MUK/KEK
-        // 1. MUK to JWK (symmetric key : AES-256-GCM) (to store)
-        // 3. Decrypting Vault Keys is done with Original Private Key
-        // 4. Vault Keys are used to encrypt/decrypt data
+        // MUK to JWK (symmetric key : AES-256-GCM) (to store)
+        // Decrypting Vault Keys is done with Original Private Key
+        // Vault Keys are used to encrypt/decrypt data
 
         /**
             Public-Private Keys
@@ -184,12 +192,17 @@ class App extends Component {
         const { publicKey, privateKey } = await generateKeypair(); // send to server
         console.log('private/public keypair', publicKey, privateKey);
 
+        const symmetricKey = generateSymmetricKey();
+        console.log('base64uri symmetric key: ', symmetricKey);
+        // Encrypt Private Key with Symmetric Key
+        // Encrypt Symmetric Key with MUK
+
         // 32 bytes vault key
         const vaultKey = forge.random.getBytesSync(32);
         const encryptedVaultKey = encryptVaultKeyWithPublicKey(vaultKey, publicKey);
-        console.log('Encrypted data with public key: ', encryptedVaultKey);
+        console.log('Encrypted vault key: ', encryptedVaultKey);
         const decryptedVaultKey = decryptVaultKeyWithPrivateKey(encryptedVaultKey, privateKey);
-        console.log('Decrypted with private key: ', decryptedVaultKey);
+        console.log('Decrypted vault key: ', decryptedVaultKey);
     }
 
     render() {
