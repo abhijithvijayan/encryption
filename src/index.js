@@ -112,10 +112,6 @@ const generateSecretKey = () => {
 const generateKeypair = async () => {
     const keypair = await rsa.generateKeyPair({ bits: 2048, workers: 2 });
     const { privateKey, publicKey } = keypair;
-    // console.log(privateKey);
-    // encrypt privatekey with MUK(Symmetric encryption is AES-256-GCM)
-    // store to server
-
     // public key encryption is RSA-OAEP with 2048-bit moduli and a public exponent of 65537.
     return { privateKey, publicKey };
 };
@@ -133,7 +129,6 @@ const encryptPrivateKeyWithSymmetricKey = (privateKey, symmetricKey) => {
     const rsaPrivateKey = pki.privateKeyToAsn1(privateKey);
     // wrap an RSAPrivateKey ASN.1 object in a PKCS#8 ASN.1 PrivateKeyInfo
     const privateKeyInfo = pki.wrapRsaPrivateKey(rsaPrivateKey);
-
     // encrypts a PrivateKeyInfo and outputs an EncryptedPrivateKeyInfo
     return pki.encryptPrivateKeyInfo(privateKeyInfo, symmetricKey, {
         algorithm: 'aes256',
@@ -168,6 +163,23 @@ const generateSymmetricKey = () => {
     return keyTobase64uri(encodedSymmetricKey);
 };
 
+const encryptSymmetricKey = (symmetricKey, masterUnlockKey) => {
+    const iv = forge.random.getBytesSync(12);
+    // ToDo: FIX: use masterKey instead of random key
+    const key = forge.random.getBytesSync(32);
+    // encrypt some bytes using GCM mode
+    const cipher = forge.cipher.createCipher('AES-GCM', key);
+    cipher.start({
+        iv, // should be a 12-byte binary-encoded string or byte buffer
+        tagLength: 128, // optional, defaults to 128 bits
+    });
+    cipher.update(forge.util.createBuffer(symmetricKey));
+    cipher.finish();
+    const encryptedSymmetricKey = cipher.output;
+    const { tag } = cipher.mode;
+    return { encryptedSymmetricKey, tag };
+};
+
 class App extends Component {
     async componentDidMount() {
         /**
@@ -188,13 +200,11 @@ class App extends Component {
         console.log('master unlock key : ', masterUnlockKey);
 
         // ToDo: Return as JWK object
-        const base64uriKey = keyTobase64uri(masterUnlockKey);
-        console.log('base64uri-encoded MUK : ', base64uriKey);
+        const base64uriMasterUnlockKey = keyTobase64uri(masterUnlockKey);
+        console.log('base64uri-encoded MUK : ', base64uriMasterUnlockKey);
 
         // ToDo:
         // MUK to JWK (symmetric key : AES-256-GCM) (to store)
-        // Decrypting Vault Keys is done with Original Private Key
-        // Vault Keys are used to encrypt/decrypt data
 
         /**
             Public-Private Keys
@@ -204,11 +214,15 @@ class App extends Component {
 
         const symmetricKey = generateSymmetricKey();
         console.log('base64uri symmetric key: ', symmetricKey);
+
         // Encrypt Private Key with Symmetric Key
         const encryptedPrivateKeyInfo = encryptPrivateKeyWithSymmetricKey(privateKey, symmetricKey);
         console.log('encryptedPrivateKeyInfo', encryptedPrivateKeyInfo);
         console.log('decryptedPrivateKey', decryptPrivateKey(encryptedPrivateKeyInfo, symmetricKey));
+
         // Encrypt Symmetric Key with MUK
+        const { encryptedSymmetricKey, tag } = encryptSymmetricKey(symmetricKey, base64uriMasterUnlockKey);
+        console.log('encryptSymmetricKey', encryptedSymmetricKey);
 
         // 32 bytes vault key
         const vaultKey = forge.random.getBytesSync(32);
