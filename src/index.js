@@ -127,14 +127,25 @@ const keyTobase64uri = keyArray => {
     // return jose.util.base64url.encode(keyArray);
 };
 
-const encryptPrivateKey = masterUnlockKey => {
-    const { privateKey } = generateKeypair();
-    const key = forge.random.getBytesSync(16);
-    console.log('Private Key: ', privateKey);
-    // 12 byte IV recommended
-    const iv = forge.random.getBytesSync(12);
-    // encrypt using AES-GCM-256
-    // https://kutt.it/FxInxm
+const encryptPrivateKeyWithSymmetricKey = (privateKey, symmetricKey) => {
+    const { pki } = forge;
+    // convert a Forge private key to an ASN.1 RSAPrivateKey
+    const rsaPrivateKey = pki.privateKeyToAsn1(privateKey);
+    // wrap an RSAPrivateKey ASN.1 object in a PKCS#8 ASN.1 PrivateKeyInfo
+    const privateKeyInfo = pki.wrapRsaPrivateKey(rsaPrivateKey);
+
+    // encrypts a PrivateKeyInfo and outputs an EncryptedPrivateKeyInfo
+    return pki.encryptPrivateKeyInfo(privateKeyInfo, symmetricKey, {
+        algorithm: 'aes256',
+    });
+};
+
+const decryptPrivateKey = (encryptedPrivateKeyInfo, symmetricKey) => {
+    const { pki } = forge;
+    // decrypts an ASN.1 EncryptedPrivateKeyInfo that was encrypted with symmetric key
+    const privateKeyInfo = pki.decryptPrivateKeyInfo(encryptedPrivateKeyInfo, symmetricKey);
+    const privateKey = pki.privateKeyFromAsn1(privateKeyInfo);
+    return privateKey;
 };
 
 const encryptVaultKeyWithPublicKey = (data, publicKey) => {
@@ -176,8 +187,6 @@ class App extends Component {
         const masterUnlockKey = new Uint8Array(XORedKey);
         console.log('master unlock key : ', masterUnlockKey);
 
-        // encryptPrivateKey(masterUnlockKey);
-
         // ToDo: Return as JWK object
         const base64uriKey = keyTobase64uri(masterUnlockKey);
         console.log('base64uri-encoded MUK : ', base64uriKey);
@@ -196,6 +205,9 @@ class App extends Component {
         const symmetricKey = generateSymmetricKey();
         console.log('base64uri symmetric key: ', symmetricKey);
         // Encrypt Private Key with Symmetric Key
+        const encryptedPrivateKeyInfo = encryptPrivateKeyWithSymmetricKey(privateKey, symmetricKey);
+        console.log('encryptedPrivateKeyInfo', encryptedPrivateKeyInfo);
+        console.log('decryptedPrivateKey', decryptPrivateKey(encryptedPrivateKeyInfo, symmetricKey));
         // Encrypt Symmetric Key with MUK
 
         // 32 bytes vault key
