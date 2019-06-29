@@ -165,8 +165,8 @@ const generateSymmetricKey = () => {
 
 const encryptSymmetricKey = (symmetricKey, masterUnlockKey) => {
     const iv = forge.random.getBytesSync(12);
-    // ToDo: FIX: use masterKey instead of random key
-    const key = forge.random.getBytesSync(32);
+    const key = forge.util.createBuffer(masterUnlockKey);
+    console.log('key buffer:', key);
     // encrypt some bytes using GCM mode
     const cipher = forge.cipher.createCipher('AES-GCM', key);
     cipher.start({
@@ -177,7 +177,7 @@ const encryptSymmetricKey = (symmetricKey, masterUnlockKey) => {
     cipher.finish();
     const encryptedSymmetricKey = cipher.output;
     const { tag } = cipher.mode;
-    return { encryptedSymmetricKey, tag };
+    return { encryptedSymmetricKey, tag, iv };
 };
 
 class App extends Component {
@@ -221,7 +221,7 @@ class App extends Component {
         console.log('decryptedPrivateKey', decryptPrivateKey(encryptedPrivateKeyInfo, symmetricKey));
 
         // Encrypt Symmetric Key with MUK
-        const { encryptedSymmetricKey, tag } = encryptSymmetricKey(symmetricKey, base64uriMasterUnlockKey);
+        const { encryptedSymmetricKey, tag } = encryptSymmetricKey(symmetricKey, masterUnlockKey);
         console.log('encryptSymmetricKey', encryptedSymmetricKey);
 
         // 32 bytes vault key
